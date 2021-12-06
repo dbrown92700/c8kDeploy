@@ -1,2 +1,2 @@
-﻿hostname,esxServer,login-username,login-password,mgmt-interface,mgmt-ipv4-addr,mgmt-ipv4-gateway,mgmt-ipv4-network,system-ip
-c8000v-davibrow-api,192.168.1.160,admin,admin,GigabitEthernet1,192.168.1.111/24,192.168.1.1,0.0.0.0/0,10.99.99.92
+﻿hostname,esxServer,login-username,login-password,mgmt-interface,mgmt-ipv4-addr,mgmt-ipv4-gateway,mgmt-ipv4-network,system-ip,deploymentOption
+c8000v-davibrow-api-TEST,192.168.1.160,admin,admin,GigabitEthernet1,192.168.1.111/24,192.168.1.1,0.0.0.0/0,10.99.99.92,1CPU-4GB-16GB

@@ -5,6 +5,10 @@
 esxUser = 'root'
 esxPassword = '10-9=One'
 VMname = 'c8000v_ovftool5'
+interfacemap = '--net:"GigabitEthernet1"="StoreMgmtNet"\
+             --net:"GigabitEthernet2"="StoreLAN"\
+             --net:"GigabitEthernet3"="SDW-IOT-VPN20"'
+ovftoolpath = '/Applications/VMware\ OVF\ Tool/'
 ovftoolthreads = 5
 
 # Directories for OVA, configs and logs

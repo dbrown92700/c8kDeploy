@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
-from includes import esxUser, esxPassword, configdir, sleeptime, sourceOva, VMname, mask, logdir, ovftoolthreads
+from includes import esxUser, esxPassword, configdir, sleeptime, sourceOva, mask, logdir
+from includes import ovftoolthreads, ovftoolpath, interfacemap, VMname
 from includes import vmanage, vmanageUser, vmanagePassword
 from ios import ios
 from ping3 import ping
@@ -25,7 +26,7 @@ class deployOVA (threading.Thread):
         self.Store = threadstore
 
     def run(self):
-        ovfcommand = f'/Applications/VMware\ OVF\ Tool/ovftool\
+        ovfcommand = f'{ovftoolpath}ovftool\
              --name="{VMname}"\
              --X:injectOvfEnv\
              --X:logFile={logdir}{self.Store["hostname"]}ovftool.log\
@@ -33,10 +34,8 @@ class deployOVA (threading.Thread):
              --acceptAllEulas\
              -ds=datastore1\
              -dm=thin\
-             --deploymentOption="1CPU-4GB-16GB"\
-             --net:"GigabitEthernet1"="StoreMgmtNet"\
-             --net:"GigabitEthernet2"="StoreLAN"\
-             --net:"GigabitEthernet3"="SDW-IOT-VPN20"\
+             --deploymentOption="{self.Store["deploymentOption"]}"\
+             {interfacemap}\
              --X:enableHiddenProperties\
              --noSSLVerify\
              --allowExtraConfig\
@@ -47,7 +46,7 @@ class deployOVA (threading.Thread):
              --prop:com.cisco.c8000v.mgmt-interface.1={self.Store["mgmt-interface"]}\
              --prop:com.cisco.c8000v.mgmt-ipv4-addr.1={self.Store["mgmt-ipv4-addr"]}\
              --prop:com.cisco.c8000v.mgmt-ipv4-gateway.1={self.Store["mgmt-ipv4-gateway"]}\
-             --prop:com.cisco.c8000v.mgmt-ipv4-network.1=0.0.0.0/0\
+             --prop:com.cisco.c8000v.mgmt-ipv4-network.1={self.Store["mgmt-ipv4-network"]}\
              --powerOn\
              {sourceOva}\
              vi://{esxUser}:{esxPassword}@{self.Store["esxServer"]}\
