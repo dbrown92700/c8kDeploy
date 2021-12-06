@@ -15,8 +15,11 @@ class ios:
             self.status = 'Failed'
             self.error = e.args[0]
 
-    def send_command(self, command):
-        return self.connection.send_command(command)
+    def send_command(self, command, expect=None):
+        if expect == None:
+            return self.connection.send_command(command)
+        else:
+            return self.connection.send_command(command_string=command, expect_string=expect)
 
     def send_file(self, localfile, remotefile):
         scpconn = SCPConn(self.connection)
