@@ -1,4 +1,4 @@
-#!python
+#!/usr/bin/env python3
 
 from includes import esxUser, esxPassword, configdir, sleeptime, sourceOva, VMname, mask, logdir, ovftoolthreads
 from includes import vmanage, vmanageUser, vmanagePassword
