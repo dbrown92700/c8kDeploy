@@ -6,16 +6,16 @@ This python script can deploy Cisco Cat8000v routers to multiple VMWare ESXi ser
 
 **Script Steps:**
 - Uses a CSV list of sites with IP, username, hostname, etc. parameters
-- Assumes that the user has already attached templates to C8Kv's in vManage ahead of time.
-- Downloads all bootstrap configs from vManage.
+- Assumes that the user has previously attached templates to C8Kv's in vManage
+- Downloads all bootstrap configs from vManage
 - Pushes C8Kv's in autonomous mode to ESX with boot parameters from CSV file
-- Identifies bootstrap files by hostname and SCP's config to each router.
-- Reboots routers into controller-mode.
-- Checks to make sure it registers to vManage.
+- Identifies bootstrap files by hostname and SCP's config to each router
+- Reboots routers into controller-mode
+- Checks to make sure it registers to vManage
 - [TBD] Nees a step to check when a certificate is pushed to the Cat8Kv to connect to vSmarts
 
 **Features and Dependancies:**
-- Requires VMWare ovftool
+- Requires VMWare ovftool to be installed and executable from cli without a path
 - It's set up to run this for as many devices as you want at the same time
 - Multi-threaded OVA push with a setting for number of simultaneous uploads
 - Maps interfaces to VM Networks
@@ -36,7 +36,7 @@ This python script can deploy Cisco Cat8000v routers to multiple VMWare ESXi ser
   - mgmt-ipv4-network is the network part of the route added to the initial config (i.e. 0.0.0.0/0 for default route)
   - hostname in parameters must match hostname attached to config in vManage
 6. Place Cat8Kv OVA in OVA directory
-7. Execute c8kdeploy.py
+8. Execute c8kdeploy.py
 
 **Notes:**
 
