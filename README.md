@@ -19,7 +19,7 @@ This python script can deploy Cisco Cat8000v routers to multiple VMWare ESXi ser
 - It's set up to run this for as many devices as you want at the same time
 - Multi-threaded OVA push with a setting for number of simultaneous uploads
 - Maps interfaces to VM Networks
-- Limited to the number of interfaces in the OVA.  If more than the 3 default interfaces are needed, edit the OVA prior to running
+- Limited to the number of interfaces in the OVA.  If more than the 3 default interfaces are needed, use cot to edit the OVA prior to running as documented in the C8000v installation docs
 
 ## Installation and Use:
 1. Clone repository
@@ -35,6 +35,7 @@ This python script can deploy Cisco Cat8000v routers to multiple VMWare ESXi ser
   - mgmt-ipv4-addr must be reachable from script server via SSH / SCP
   - mgmt-ipv4-network is the network part of the route added to the initial config (i.e. 0.0.0.0/0 for default route)
   - hostname in parameters must match hostname attached to config in vManage
+  - valid settings for deploymentOption (i.e. 1CPU-4GB-16GB) can be listed using "ovftool *cat8000v.ova*"
 6. Place Cat8Kv OVA in OVA directory
 8. Execute c8kdeploy.py
 
