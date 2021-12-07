@@ -16,7 +16,7 @@ This python script can deploy Cisco Cat8000v routers to multiple VMWare ESXi ser
 - Checks for certificate installed status on vManage
 
 **Features and Dependancies:**
-- Requires VMWare ovftool to be installed and executable from cli without a path
+- Requires VMWare ovftool to be installed
 - It's set up to run this for as many devices as you want at the same time
 - Multi-threaded OVA push with a setting for number of simultaneous uploads
 - Maps interfaces to VM Networks

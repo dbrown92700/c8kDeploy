@@ -1,15 +1,19 @@
 # VMWare information
-# username and password
-# name of the Cat8000v VM
-# Number of simultaneous threads for deploying the VM to ESX servers
+# Username and password
+# Final name of the Cat8000v VM on ESXi
+# Interface map for C8Kv to VM Networks. Max of 3 interfaces unless you edit the OVA package to include more
+# Python host path for ovftool
+# Number of simultaneous uploads for deploying the VM to ESX servers
 esxUser = 'root'
 esxPassword = 'password'
 VMname = 'c8000v_pyscript'
-interfacemap = '--net:"GigabitEthernet1"="StoreMgmtNet"\
-             --net:"GigabitEthernet2"="StoreLAN"\
-             --net:"GigabitEthernet3"="SDW-IOT-VPN20"'
-ovftoolpath = '/Applications/VMware\ OVF\ Tool/'
-ovftoolthreads = 5
+interfacemap = {
+     'GigabitEthernet1': 'StoreMgmtNet',
+     'GigabitEthernet2': 'StoreLAN',
+     'GigabitEthernet3': 'SDW-IOT-VPN20'
+}
+ovftoolpath = '/Applications/VMware OVF Tool/'
+ovftoolthreads = 2
 
 # Directories for OVA, configs and logs
 # Configs and logs will be generated automatically
@@ -27,5 +31,5 @@ vmanagePassword = 'password'
 # Mask for the management IP (i.e. '/24').  This will be stripped off the mgmt-ipv4-addr field and used for ssh
 mask = '/24'
 
-# Wait time between successive deployment scans and updates
+# Wait time in seconds between successive deployment scans and updates
 sleeptime = 5
