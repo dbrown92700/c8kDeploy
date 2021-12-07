@@ -10,7 +10,8 @@ from time import sleep
 import threading
 from vmanage_api import rest_api_lib
 
-Statuses = ['Not Started','OVA Deploying','OVA Deployed','Pingable','SSH Works','Config Copied','Awaiting Registration','Registered']
+Statuses = ['Not Started', 'OVA Deploying', 'OVA Deployed', 'Pingable', 'SSH Works', 'Config Copied', \
+            'Awaiting Registration', 'Registered', 'Activate Command Sent', 'Certificate Updated']
 
 def write_Status(statuses):
     with open(f'{configdir}status.temp', 'w') as file:
@@ -65,7 +66,7 @@ try:
     for line in statusfile:
         data = line.strip('\n').split(',')
         storeStatuses[data[0]] = int(data[1])
-        if Statuses[int(data[1])] == 'Registered':
+        if Statuses[int(data[1])] == 'Certificate Updated':
             storesCompleted += 1
         print(f'   {data[0]}: {Statuses[int(data[1])]}')
 except:
@@ -92,24 +93,62 @@ write_Status(storeStatuses)
 
 # Download all bootstrap files and save as hostname.cfg
 
+storeList = list(storeStatuses.keys())
 print('---------Download all bootstrap configs for Cat8000v attached to templates ---------')
 vmsess = rest_api_lib(vmanage, vmanageUser, vmanagePassword)
 bootDevices = vmsess.get_request('system/device/vedges?state=bootstrapconfiggenerated')['data']
 vmsess.logout()
 for device in bootDevices:
-    print(f'{device["uuid"]}: {device["configOperationMode"]}')
+    print(f'  {device["uuid"]}: {device["configOperationMode"]}')
     if device['configOperationMode'] == 'vmanage':
         vmsess = rest_api_lib(vmanage, vmanageUser, vmanagePassword)
         bootConfig = vmsess.get_request(f'system/device/bootstrap/device/{device["uuid"]}?configtype=cloudinit&inclDefRootCert=false')['bootstrapConfig']
         vmsess.logout()
         for line in bootConfig.split('\n'):
             if line.find('hostname') > -1:
-                filename = f'{line.lstrip(" hostname ")}.cfg'
-        with open(f'{configdir}{filename}', 'w') as file:
-            file.write(bootConfig)
-        print(f'  Saved {filename}')
+                filename = f'{line.lstrip(" hostname ")}'
+                if filename in storeList:
+                    with open(f'{configdir}{filename}.cfg', 'w') as file:
+                        file.write(bootConfig)
+                    print(f'  Saved {filename}')
+                else:
+                    print('    Host not found in list.  Not saved')
+                break
     else:
-        print('  Skipped')
+        print('    Not in vManage mode.  Skipped')
+
+filelist = os.popen(f'ls {configdir}').read().split('\n')
+for store in stores:
+    filename = f'{store["hostname"]}.cfg'
+    print(f'  Parsing {filename}')
+    if filename in filelist:
+        file = open(f'{configdir}{filename}')
+        for line in file.read().split('\n'):
+            for param in ['- uuid', ' - otp', 'system-ip']:
+                if line.find(param) > -1:
+                    pvalue = f'{line.lstrip(" ").lstrip(param).lstrip(" ").lstrip(": ")}'
+                    store[param.lstrip('- ')] = pvalue
+                    print(f'    - {param.lstrip("- ")}:{pvalue}')
+        storeList.remove(store['hostname'])
+    else:
+        print(f'!!! {store["hostname"]} config file missing')
+
+# Check statuses of stores with no bootstrap config
+
+if len(storeList) > 0:
+    print('  !!! No bootstrap config found for the following.  !!!')
+    for store in storeList:
+        if (storeStatuses[store] > Statuses.index('Config Copied')):
+            storeList.remove(store)
+            print(f'  {store} config not downloaded.  In {Statuses[storeStatuses[store]]} state.')
+
+if len(storeList) > 0:
+    print('  The following stores bootstrap are missing:')
+    for store in storeList:
+        print(store)
+    exit()
+else:
+    print('--- SUCCESS: All required bootstrap configs found and downloaded ---\n')
 
 runnumber = 0
 
@@ -214,15 +253,52 @@ while storesCompleted < len(stores):
     for store in stores:
         if Statuses[int(storeStatuses[store['hostname']])] == 'Awaiting Registration':
             vmsess = rest_api_lib(vmanage, vmanageUser, vmanagePassword)
-            sdwanStatus = vmsess.get_request(f'device?deviceId={store["system-ip"]}')['data'][0]['reachability']
+            try:
+                sdwanStatus = vmsess.get_request(f'device?deviceId={store["system-ip"]}')['data'][0]['reachability']
+            except:
+                sdwanStatus = 'Unreachable'
             vmsess.logout()
             if sdwanStatus == 'reachable':
                 print(f'  {store["hostname"]}:  Registered to vManage')
                 storeStatuses[store['hostname']] += 1
                 write_Status(storeStatuses)
-                storesCompleted += 1
             else:
                 print(f'  {store["hostname"]}:  Unreachable')
+
+# Scan Registered stores and and send vedge-cloud activate command
+
+    print('Scanning stores with status - Registered')
+    for store in stores:
+        if Statuses[int(storeStatuses[store['hostname']])] == 'Registered':
+            try:
+                storessh = ios(store['mgmt-ipv4-addr'].rstrip(mask), store['login-username'], store['login-password'])
+                command = 'request platform software sdwan vedge_cloud activate'
+                response = storessh.send_command(f'{command} chassis-number {store["uuid"]} token {store["otp"]}')
+                storessh.disconnect()
+                storeStatuses[store['hostname']] += 1
+                write_Status(storeStatuses)
+                print(f'  {store["hostname"]}:  Activate Command Sent')
+            except Exception as e:
+                print(f'  {store["hostname"]}:  SSH Error\n{e}')
+
+# Scan Activate Command Sent stores and check certificate status
+
+    print('Scanning stores with status - Activate Command Sent')
+    for store in stores:
+        vmsess = rest_api_lib(vmanage, vmanageUser, vmanagePassword)
+        sdwanStatus = vmsess.get_request(f'certificate/vedge/list?model=vedge-C8000V')['data']
+        vmsess.logout()
+        if Statuses[int(storeStatuses[store['hostname']])] == 'Activate Command Sent':
+            certStatus = 'Unknown'
+            for edge in sdwanStatus:
+                if edge['system-ip'] == store['system-ip']:
+                    certStatus = edge['vedgeCertificateState']
+                    break
+            print(f'  {store["hostname"]}:  Certificate Status - {certStatus}')
+            if certStatus == 'certinstalled':
+                storeStatuses[store['hostname']] += 1
+                write_Status(storeStatuses)
+                storesCompleted += 1
 
 # Print Current Status of stores
 
