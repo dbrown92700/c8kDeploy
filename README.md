@@ -12,7 +12,8 @@ This python script can deploy Cisco Cat8000v routers to multiple VMWare ESXi ser
 - Identifies bootstrap files by hostname and SCP's config to each router
 - Reboots routers into controller-mode
 - Checks to make sure it registers to vManage
-- [TBD] Nees a step to check when a certificate is pushed to the Cat8Kv to connect to vSmarts
+- Issues vedge_cloud activate command
+- Checks for certificate installed status on vManage
 
 **Features and Dependancies:**
 - Requires VMWare ovftool to be installed and executable from cli without a path
@@ -32,7 +33,7 @@ This python script can deploy Cisco Cat8000v routers to multiple VMWare ESXi ser
   - credentials in this file are for the C8Kv.  Credentials for ESX are in includes.py
   - mgmt-ipv4-addr must be expressed in CIDR format (i.e. 10.1.1.1/24)
   - mask setting in includes.py should match mgmt-ipv4-addr.
-  - mgmt-ipv4-addr must be reachable from script server via SSH / SCP
+  - mgmt-ipv4-addr must be reachable from script server via SSH / SCP both on initial deployment and in SDWAN mode
   - mgmt-ipv4-network is the network part of the route added to the initial config (i.e. 0.0.0.0/0 for default route)
   - hostname in parameters must match hostname attached to config in vManage
   - valid settings for deploymentOption (i.e. 1CPU-4GB-16GB) can be listed using "ovftool *cat8000v.ova*"
@@ -41,11 +42,17 @@ This python script can deploy Cisco Cat8000v routers to multiple VMWare ESXi ser
 
 **Notes:**
 
-Currently, mgmt-ipv4-addr does not need to be reachable via SSH after reboot for script to complete
+Cat8Kv IP address, mgmt-ipv4-addr, must be reachable via SSH both during the initial deployment in autonomous mode and after the reboot into controller mode for script to complete.  There's no provision as written for this address to change.  In both modes, the address can be placed on any interface.  In controller mode, the address will normally have to be on the management interface or a service interface.  If the address is on the tunnel interface, "allow service sshd" must be configured on the tunnel to enable ssh.
 
-Script creates status.csv file in config.dir.  The status.csv file format records which step each device is on at any moment.  It should allow the script to re-start successfully if it's interupted during the deployment.  If there are problems restarting an interrupted deployment it may be necessary to back a stuck site up a step.  For example, if the script is interrupted, it will terminate any active threads pushing OVA's to ESX servers.  To reset that process you would need to move that site back to step 0 and possibly manually kill a stuck deploy process on the ESX server or delete the partially deployed VM on the ESX server.  The steps (0-7) correspond to the Statuses list in c8kdeploy.py:
->Statuses = ['Not Started','OVA Deploying','OVA Deployed','Pingable','SSH Works','Config Copied','Awaiting Registration','Registered']
+Script creates status.csv file in config.dir.  The status.csv file format records which step each device is on at any moment.  It should allow the script to re-start successfully if it's interupted during the deployment.  If there are problems restarting an interrupted deployment it may be necessary to back a stuck site up a step by decrementing the value.  For example, if the script is interrupted, it will terminate any active threads pushing OVA's to ESX servers.  To reset that process you would need to move that site back to step 0 and possibly manually kill a stuck deploy process on the ESX server or delete the partially deployed VM on the ESX server.  The steps (0-9) correspond to the Statuses list in c8kdeploy.py:
 
-
-
-
+0. 'Not Started'
+1. 'OVA Deploying'
+2. 'OVA Deployed'
+3. 'Pingable'
+4. 'SSH Works'
+5. 'Config Copied'
+6. 'Awaiting Registration'
+7. 'Registered'
+8. 'Activate Command Sent'
+9. 'Certificate Installed'
