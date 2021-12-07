@@ -3,8 +3,8 @@
 # name of the Cat8000v VM
 # Number of simultaneous threads for deploying the VM to ESX servers
 esxUser = 'root'
-esxPassword = '10-9=One'
-VMname = 'c8000v_ovftool5'
+esxPassword = 'password'
+VMname = 'c8000v_pyscript'
 interfacemap = '--net:"GigabitEthernet1"="StoreMgmtNet"\
              --net:"GigabitEthernet2"="StoreLAN"\
              --net:"GigabitEthernet3"="SDW-IOT-VPN20"'
@@ -20,9 +20,9 @@ configdir = '/Users/davibrow/Downloads/Cat8Kv/pythonscript/configs/'
 logdir = '/Users/davibrow/Downloads/Cat8Kv/pythonscript/logs/'
 
 # vManage ip or hostname, username, & password
-vmanage = 'vmanage.secmob.com'
+vmanage = 'vmanage.cisco.com'
 vmanageUser = 'davibrow'
-vmanagePassword = '10-9=One'
+vmanagePassword = 'password'
 
 # Mask for the management IP (i.e. '/24').  This will be stripped off the mgmt-ipv4-addr field and used for ssh
 mask = '/24'

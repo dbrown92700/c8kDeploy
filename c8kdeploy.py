@@ -11,7 +11,7 @@ import threading
 from vmanage_api import rest_api_lib
 
 Statuses = ['Not Started', 'OVA Deploying', 'OVA Deployed', 'Pingable', 'SSH Works', 'Config Copied', \
-            'Awaiting Registration', 'Registered', 'Activate Command Sent', 'Certificate Updated']
+            'Awaiting Registration', 'Registered', 'Activate Command Sent', 'Certificate Installed']
 
 def write_Status(statuses):
     with open(f'{configdir}status.temp', 'w') as file:
