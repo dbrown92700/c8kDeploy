@@ -19,17 +19,19 @@ This python script can deploy Cisco Cat8000v routers to multiple VMWare ESXi ser
 - Requires VMWare ovftool to be installed
 - It's set up to run this for as many devices as you want at the same time
 - Multi-threaded OVA push with a setting for number of simultaneous uploads
-- Maps interfaces to VM Networks
-- Limited to the number of interfaces in the OVA.  If more than the 3 default interfaces are needed, use cot to edit the OVA prior to running as documented in the C8000v installation docs
+- Maps interfaces to VM Networks.
+- See Add_Interfaces.md document for details on adding more than the 3 interfaces included in default OVA
 
 ## Installation and Use:
 1. Clone repository
 2. Install requirements
 > pip3 install -r requirements.txt
-3. Create OVA, Config, and Log directories
-4. Edit settings in includes.py.  See notes below in step 5
-5. Add sites to parameters.csv and move to Config directory
-  - Each site must have a c8000v attached to a template in vManage
+3. Ensure VMWare ovftool is installed
+> https://developer.vmware.com/web/tool/4.4.0/ovf
+5. Create OVA, Config, and Log directories
+6. Edit settings in includes.py.  See notes below in step 7
+7. Add sites to parameters.csv and move to Config directory
+  - each site must have a c8000v attached to a template in vManage
   - credentials in this file are for the C8Kv.  Credentials for ESX are in includes.py
   - mgmt-ipv4-addr must be expressed in CIDR format (i.e. 10.1.1.1/24)
   - mask setting in includes.py should match mgmt-ipv4-addr.
@@ -37,10 +39,10 @@ This python script can deploy Cisco Cat8000v routers to multiple VMWare ESXi ser
   - mgmt-ipv4-network is the network part of the route added to the initial config (i.e. 0.0.0.0/0 for default route)
   - hostname in parameters must match hostname attached to config in vManage
   - valid settings for deploymentOption (i.e. 1CPU-4GB-16GB) can be listed using "ovftool *cat8000v.ova*"
-6. Place Cat8Kv OVA in OVA directory
-7. In vManage, attach template to C8Kv(s)
-8. In vManage, generate bootstrap config for C8Kv(s) with attached templates.  The script will take care of downloading the config.
-9. Execute c8kdeploy.py
+8. Place Cat8Kv OVA in OVA directory
+9. In vManage, attach template to C8Kv(s)
+10. In vManage, generate bootstrap config for C8Kv(s) with attached templates.  The script will take care of downloading the configs.
+11. Execute c8kdeploy.py
 
 **Notes:**
 
@@ -58,3 +60,9 @@ Script creates status.csv file in config.dir.  The status.csv file format record
 7. 'Registered'
 8. 'Activate Command Sent'
 9. 'Certificate Installed'
+
+## Author
+
+This project was written and is maintained by the following individuals:
+
+* David Brown <davibrow@cisco.com>
