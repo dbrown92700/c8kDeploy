@@ -2,7 +2,7 @@
 The original OVA from Cisco Systems only includes 3 interfaces.  If additional interfaces are needed they can be added through the use of the [Common OVF Tool (COT)](https://cot.readthedocs.io) and the ```ovftool``` command from VMware.\
 
 ## COT installation
-Be sure to install the COT tool using the instructions at ]this page](https://cot.readthedocs.io/en/latest/installation.html).
+Be sure to install the COT tool using the instructions at [this page](https://cot.readthedocs.io/en/latest/installation.html).
 
 ## COT parameters
 Use the ```-o output.ova``` paramter to specify the name of the new OVA
