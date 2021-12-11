@@ -5,16 +5,18 @@ from includes import ovftoolthreads, ovftoolpath, interfacemap, VMname
 from includes import vmanage, vmanageUser, vmanagePassword
 from ios import ios
 from ping3 import ping
-import os
+import os, sys
 import subprocess
 from time import sleep
 import threading
 from vmanage_api import rest_api_lib
+from datetime import datetime
 
 # Definition of the phases of C8K deployment
 
 Statuses = ['Not Started', 'OVA Deploying', 'OVA Deployed', 'Pingable', 'SSH Works', 'Config Copied', \
-            'Awaiting Registration', 'Registered', 'Activate Command Sent', 'Certificate Installed']
+            'Awaiting Registration', 'Registered', 'Activate Command Sent', 'Certificate Installed', \
+            'OVA Deployment Failed']
 storesCompleted = 0
 
 # Write current statuses of each C8Kv deployment to status.csv
@@ -24,6 +26,10 @@ def write_status(statuses):
         for hostname in statuses:
             statusFile.write(f'{hostname},{statuses[hostname]}\n')
     os.replace(f'{configdir}status.temp', f'{configdir}status.csv')
+
+def timestamp():
+    t = datetime.now()
+    return f'{t.day:02}/{t.month:02}/{t.year} {t.hour:02}:{t.minute:02}:{t.second:02}'
 
 
 # Threading class for ovftool push of OVA to ESX server
@@ -42,7 +48,7 @@ class deployOVA (threading.Thread):
         for interface in interfacemap:
             interfaces += f'--net:{interface}={interfacemap[interface]} '
 
-        ovfcommand = f'--name={vmname}\
+        ovfcommand = f'--name={self.Store["hostname"]}\
              --X:injectOvfEnv\
              --X:logFile={logdir}{self.Store["hostname"]}ovftool.log\
              --X:logLevel=trivia\
@@ -69,21 +75,59 @@ class deployOVA (threading.Thread):
         stderrFile = open(f'{logdir}{self.Store["hostname"]}error.log', 'w')
         proc = subprocess.Popen([f'{ovftoolpath}ovftool']+ovfcommand.split(), shell=False, stdout=stdoutFile, stderr=stderrFile)
         result = proc.wait()
-        print(f'***THREAD COMPLETE Status {result}*** {self.Store["hostname"]} OVA Deployment Complete ***')
+        stdoutFile.close()
+        stderrFile.close()
+        if result == 0:
+            print(f'***THREAD COMPLETE Status {result}*** {self.Store["hostname"]} OVA Deployment Complete ***')
+        else:
+            with open(f'{logdir}{self.Store["hostname"]}console.log') as stdoutFile:
+                print(f'\n\n{self.Store["hostname"]} OVA Deployment Finished with ERROR CONDITION ******************\n\n')
+                for line in stdoutFile.readlines():
+                    print(line, end='')
+                print(f'{self.Store["hostname"]} OVA Deployment Finished with ERROR CONDITION ******************\n\n')
+        return result
 
 
-# ################################ DATA COLLECTION PHASE ##########################
+
+# Logger class is used to send console output to a file and console simultaneously
+
+class Logger(object):
+    def __init__(self):
+        self.terminal = sys.stdout
+
+    def open(self, logfile):
+        self.log = open(logfile, "a")
+
+    def write(self, message):
+        self.terminal.write(message)
+        self.log.write(message)
+
+    def flush(self):
+        # this flush method is needed for python 3 compatibility.
+        # this handles the flush command by doing nothing.
+        # you might want to specify some extra behavior here.
+        pass
+
+
+    # ################################ BEGIN MAIN PROGRAM ##########################
+
+# Mirror console stdout output to log file
+sys.stdout = Logger()
+sys.stdout.open(f'{logdir}console.log')
+
+    # ################################ DATA COLLECTION PHASE ##########################
 # Load status data stored from previous run
 
 storeStatuses = {}
-print('--------- Beginning Statuses --------------------------------------------------')
+print(f'--------- Beginning Statuses --- {timestamp()} -----------------------------------------------')
 try:
     statusfile = open(f'{configdir}status.csv', 'r', encoding='utf-8-sig')
     noStatus = False
     for line in statusfile:
         data = line.strip('\n').split(',')
         storeStatuses[data[0]] = int(data[1])
-        if Statuses[int(data[1])] == 'Certificate Updated':
+        if Statuses[int(data[1])] == 'Certificate Installed' or \
+                Statuses[int(data[1])] == 'OVA Deployment Failed':
             storesCompleted += 1
         print(f'   {data[0]}: {Statuses[int(data[1])]}')
 except:
@@ -104,20 +148,28 @@ for line in parameters:
         index += 1
     if noStatus:
         storeStatuses[values['hostname']] = 0
+    values['activateTime'] = datetime.now()
     stores.append(values)
 
 write_status(storeStatuses)
 
+# Generate bootstrap files for all C8K in vManage mode in tokengenerated state
 # Download all bootstrap files.  If hostname is in the parameters list, save as hostname.cfg
 
 storeList = list(storeStatuses.keys())
 print('---------Download all bootstrap configs for Cat8000v attached to templates ---------')
 vmsess = rest_api_lib(vmanage, vmanageUser, vmanagePassword)
-bootDevices = vmsess.get_request('system/device/vedges?state=bootstrapconfiggenerated')['data']
+bootDevices = vmsess.get_request('system/device/vedges?model=vedge-C8000V&state=bootstrapconfiggenerated')['data']
+tokenDevices = vmsess.get_request('system/device/vedges?model=vedge-C8000V&state=tokengenerated')['data']
+bootDevices = tokenDevices + bootDevices
 vmsess.logout()
 for device in bootDevices:
     print(f'  {device["uuid"]}: {device["configOperationMode"]}')
     if device['configOperationMode'] == 'vmanage':
+        if device['vedgeCertificateState'] == 'tokengenerated':
+            print('    Bootstrap config not generated.  Generating now.')
+        else:
+            print('    Bootstrap already generated.')
         vmsess = rest_api_lib(vmanage, vmanageUser, vmanagePassword)
         url = f'system/device/bootstrap/device/{device["uuid"]}?configtype=cloudinit&inclDefRootCert=false'
         bootConfig = vmsess.get_request(url)['bootstrapConfig']
@@ -128,7 +180,7 @@ for device in bootDevices:
                 if filename in storeList:
                     with open(f'{configdir}{filename}.cfg', 'w') as file:
                         file.write(bootConfig)
-                    print(f'  Saved {filename}')
+                    print(f'    Saved {filename} config')
                 else:
                     print(f'    hostname {filename} not found in list.  Config file not saved')
                 break
@@ -171,7 +223,8 @@ else:
 runNumber = 0
 while storesCompleted < len(stores):
 
-    print(f'------------------------- Run {runNumber} ----------------------------------------------------')
+    t = datetime.now()
+    print(f'------------------------- Run {runNumber} --- {timestamp()} ------------------------------------------')
     runNumber += 1
 
     # OVA PUSH START: Scan Not Started stores and begin an OVF deployment
@@ -183,7 +236,7 @@ while storesCompleted < len(stores):
             if threading.active_count() < (ovftoolthreads + 1):
                 storedata = dict(store)
                 store['ovaThread'] = deployOVA(storedata)
-                store['ovaThread'].start()
+                store['ovaResult'] = store['ovaThread'].start()
                 print(f'  {store["hostname"]}: OVA Deployment Started')
                 sleep(2)
                 storeStatuses[store['hostname']] += 1
@@ -209,12 +262,16 @@ while storesCompleted < len(stores):
                     if line.lstrip() != '':
                         percentComplete = line
                 print(f'  {store["hostname"]}: OVA Still Deploying - At: {percentComplete}%')
-
-
             else:
-                print(f'  {store["hostname"]}: OVA Deployed')
-                storeStatuses[store['hostname']] += 1
-                write_status(storeStatuses)
+                if store['ovaResult'] == 0:
+                    print(f'  {store["hostname"]}: OVA Deployed')
+                    storeStatuses[store['hostname']] += 1
+                    write_status(storeStatuses)
+                else:
+                    print(f'  {store["hostname"]}: OVA Deployment Failed')
+                    storeStatuses[store['hostname']] = Statuses.index('OVA Deployment Failed')
+                    write_status(storeStatuses)
+                    storesCompleted += 1
 
     # PING STATUS: Scan OVA Deployed stores and check if they're ping-able
 
@@ -240,6 +297,7 @@ while storesCompleted < len(stores):
                 storeStatuses[store['hostname']] += 1
                 write_status(storeStatuses)
                 storessh.disconnect()
+                print('    SSH Works - Moving to next step')
 
     # SCP CONFIG: Scan SSH Works stores, enable SCP, copy sdwan config
 
@@ -255,7 +313,7 @@ while storesCompleted < len(stores):
             result = 'SDWAN config SCP Fail. Will re-attempt'
             for line in response:
                 if line.find('ciscosdwan_cloud_init.cfg') > -1:
-                    result = 'SDWAN config SCP Success'
+                    result = 'SDWAN config SCP Success. Moving to next step.'
                     storeStatuses[store['hostname']] += 1
                     write_status(storeStatuses)
             print(f'  {store["hostname"]}: {result}')
@@ -272,10 +330,9 @@ while storesCompleted < len(stores):
                 response = storessh.send_command('\n', '#').split('\n')
             except:
                 response = 'Not Reachable'
-            result = 'Success'
             storeStatuses[store['hostname']] += 1
             write_status(storeStatuses)
-            print(f'  {store["hostname"]}: {result}')
+            print(f'  {store["hostname"]}: controller-mode enable Command Sent. Moving to next step')
 
     # CHECK CONTROL CONNECTION: Scan Awaiting Registration stores and see if they're registered to vManage
     # Uses vManage API to check registration status of device by system-ip in parameters.csv
@@ -290,7 +347,7 @@ while storesCompleted < len(stores):
                 sdwanStatus = 'Unreachable'
             vmsess.logout()
             if sdwanStatus == 'reachable':
-                print(f'  {store["hostname"]}:  Registered to vManage')
+                print(f'  {store["hostname"]}:  Registered to vManage. Moving to next step')
                 storeStatuses[store['hostname']] += 1
                 write_status(storeStatuses)
             else:
@@ -303,25 +360,28 @@ while storesCompleted < len(stores):
         if Statuses[int(storeStatuses[store['hostname']])] == 'Registered':
             try:
                 storessh = ios(store['mgmt-ipv4-addr'].replace(mask,''), store['login-username'], store['login-password'])
-                command = f'request platform software sdwan vedge_cloud activate \
-                    chassis-number {store["uuid"]} token {store["otp"]}'
+                command = 'request platform software sdwan vedge_cloud activate '
+                command += f'chassis-number {store["uuid"]} token {store["otp"]}'
                 response = storessh.send_command(command)
                 storessh.disconnect()
                 storeStatuses[store['hostname']] += 1
                 write_status(storeStatuses)
-                print(f'  {store["hostname"]}:  Activate Command Sent')
-                pring(f'    {command}')
+                print(f'  {store["hostname"]}:  Activate Command Sent. Moving to next step')
+                print(f'    {command}')
+                store['activateTime'] = datetime.now()
             except Exception as e:
                 print(f'  {store["hostname"]}:  SSH Error\n{e}')
 
     # CERTIFICATE INSTALLED: Scan Activate Command Sent stores and check certificate status
 
     print('Scanning stores with status - Activate Command Sent')
+    sdwanStatus = ''
     for store in stores:
-        vmsess = rest_api_lib(vmanage, vmanageUser, vmanagePassword)
-        sdwanStatus = vmsess.get_request(f'certificate/vedge/list?model=vedge-C8000V')['data']
-        vmsess.logout()
         if Statuses[int(storeStatuses[store['hostname']])] == 'Activate Command Sent':
+            if sdwanStatus == '':
+                vmsess = rest_api_lib(vmanage, vmanageUser, vmanagePassword)
+                sdwanStatus = vmsess.get_request(f'certificate/vedge/list?model=vedge-C8000V')['data']
+                vmsess.logout()
             certStatus = 'Unknown'
             for edge in sdwanStatus:
                 try:
@@ -332,19 +392,37 @@ while storesCompleted < len(stores):
                     certStatus = 'Unknown'
             print(f'  {store["hostname"]}:  Certificate Status - {certStatus}')
             if certStatus == 'certinstalled':
+                print(f'    {store["hostname"]} Install Complete')
                 storeStatuses[store['hostname']] += 1
                 write_status(storeStatuses)
                 storesCompleted += 1
+            else:
+                lapsed = (datetime.now() - store['activateTime']).seconds
+                print(f'     {lapsed} seconds since last Activate command.')
+                if lapsed > 300:
+                    print('       Over 5 minutes. Moving back to Registered state to retry.')
+                    storeStatuses[store['hostname']] -= 1
+                    write_status(storeStatuses)
 
     # DEPLOYMENT STATUS REPORT: Print Current Status of stores
 
-    print('\n------------ Current status of stores -----------------------------------------')
+    print(f'\n------------ Current status of stores --- {timestamp()} --------------------------------')
+    for x in range(9):
+        stats = list(storeStatuses.values())
+        print(f'{Statuses[x]}:{stats.count(x):<3}', end=' ')
+    print(f'Completed:{storesCompleted:<3}\n')
     for store in stores:
         print(f'  {store["hostname"]}: {Statuses[int(storeStatuses[store["hostname"]])]}')
 
     if storesCompleted < len(stores):
+        print(f'-----------------------{storesCompleted} sites are fully complete.--------------------------------\n\n')
+        sys.stdout.flush()
+        print(f'    seconds before next run.', end='\r')
         for time in range(sleeptime, 0, -1):
-            print(f'{time} seconds before next run.', end='\r')
+            print(f'{time:3}', end='\r')
             sleep(1)
+    else:
+        print(f'{timestamp()}: All Sites completed.')
+    print('\n\n')
 
     # COMPLETION: Finish when all stores are 'Certificate Installed' status, or continue iteration.
