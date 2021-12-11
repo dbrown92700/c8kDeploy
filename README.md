@@ -48,18 +48,54 @@ This python script can deploy Cisco Cat8000v routers to multiple VMWare ESXi ser
 
 Cat8Kv IP address, mgmt-ipv4-addr, must be reachable via SSH both during the initial deployment in autonomous mode and after the reboot into controller mode for script to complete.  There's no provision as written for this address to change.  In both modes, the address can be placed on any interface.  In controller mode, the address will normally have to be on the management interface or a service interface.  If the address is on the tunnel interface, "allow service sshd" must be configured on the tunnel to enable ssh.
 
-Script creates status.csv file in config.dir.  The status.csv file format records which step each device is on at any moment.  It should allow the script to re-start successfully if it's interupted during the deployment.  If there are problems restarting an interrupted deployment it may be necessary to back a stuck site up a step by decrementing the value.  For example, if the script is interrupted, it will terminate any active threads pushing OVA's to ESX servers.  To reset that process you would need to move that site back to step 0 and possibly manually kill a stuck deploy process on the ESX server or delete the partially deployed VM on the ESX server.  The steps (0-9) correspond to the Statuses list in c8kdeploy.py:
+Script creates status.csv file in config.dir.  The status.csv file format records which step each device is on at any moment.  It should allow the script to re-start successfully if it's interupted during the deployment.  If there are problems restarting an interrupted deployment it may be necessary to back a stuck site up a step by decrementing the value.  For example, if the script is interrupted, it will terminate any active threads pushing OVA's to ESX servers.  To reset that process you would need to move that site back to step 0 and possibly manually kill a stuck deploy process on the ESX server or delete the partially deployed VM on the ESX server.  The steps (0-10) correspond to the Statuses list in c8kdeploy.py.
 
-0. 'Not Started'
-1. 'OVA Deploying'
-2. 'OVA Deployed'
-3. 'Pingable'
-4. 'SSH Works'
-5. 'Config Copied'
-6. 'Awaiting Registration'
-7. 'Registered'
-8. 'Activate Command Sent'
-9. 'Certificate Installed'
+## Script Steps and Statuses
+
+### Data Phase:
+
+- reads in data from parameters.csv
+- reads in data from status.csv if this deployment was previously run and stopped
+- scans vManage API for all C8Kv devices with templates attached (in vManage mode) and in "tokengenerated" (undeployed) status.  Generates and downloads bootstrap configs for all of these.  Saves configs with hostnames that match the parameters.csv file
+- Checks that all sites have a config.  If any are missing, prints a list and terminates.
+
+### Deployment Phase:
+
+Iterates through all sites repeatedly moving them through the following steps until all sites are complete or failed.
+
+0. **'Not Started'**:
+- The deployment host has successfully generated and downloaded a bootstrap config for this site.
+- Executes the ovftool command.
+1. **'OVA Deploying'**:
+- The OVA is uploading to the ESX server, and progress % will be printed on subsequent runs.
+- A "Thread Complete" message will be printed when the command is done executing.  If status is not "0" (Success), the ovftool console messages will be printed for troubleshooting and the site status will be moved to "OVA Deployment Failed"
+2. **'OVA Deployed'**:
+- ovftool command has completed successfully.
+- The deployment host attempts to ping the C8K IP for that site.
+3. **'Pingable'**:
+- Ping works
+- The deployment host attempts to SSH into the C8K IP address.
+4. **'SSH Works'**:
+- SSH works
+- Uses scp to copy the site config to the C8K bootflash://ciscosdwan_cloud_init.cfg.
+5. **'Config Copied'**:
+- SCP complete.
+- Uses ssh to issue the "controller-mode enable" command.
+6. **'Awaiting Registration'**:
+- The C8K will be rebooting into SDWAN mode and loading the bootstrap config during this time.
+- Uses vManage API to look for the C8K to connect to vManage,
+7. **'Registered'**:
+- The vManage API shows the C8K connected.
+- The deployment host uses ssh to issue the "vedge-cloud activate" command.
+8. **'Activate Command Sent'**:
+- vedge-cloud activate command sent.
+- The deployment host uses the vManage API to check the the C8K certificate status.
+9. **'Certificate Installed'**:
+- The certificate status is "certinstalled".
+- The deployment is complete.
+10. **'OVA Deployment Failed'**:
+- The ovftool command returned an error.
+- Remaining steps were skipped and no further action will be taken.
 
 ## Author
 
