@@ -40,9 +40,8 @@ This python script can deploy Cisco Cat8000v routers to multiple VMWare ESXi ser
   - hostname in parameters must match hostname attached to config in vManage
   - valid settings for deploymentOption (i.e. 1CPU-4GB-16GB) can be listed using "ovftool *cat8000v.ova*"
 8. Place Cat8Kv OVA in OVA directory
-9. In vManage, attach template to C8Kv(s)
-10. In vManage, generate bootstrap config for C8Kv(s) with attached templates.  The script will take care of downloading the configs.
-11. Execute c8kdeploy.py
+9. In vManage, attach template to C8Kv(s).  Hostname must match the parameters file.  The script will generate and download the bootstrap file.
+10. Execute c8kdeploy.py
 
 **Notes:**
 
