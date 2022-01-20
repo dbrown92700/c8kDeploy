@@ -1,7 +1,7 @@
 # Modifying the original OVA
 The original OVA file from Cisco Systems a number of different deployment options for various CPU core counts, Memory and Disk sizes.  The original OVA also includes only three network interface definitions.
 
-It is likely that the OVA will need to be modified to include only one deployment option and also have additional network interface cards defined.
+It is likely that the OVA will need to be modified to include only one deployment option and also have additional network interface cards defined.  Our testing showed that the ovftool is unable to correctly specify the --deploymentOption and will cause an error if any option aside from the default is selected.
 
 Those changes to the OVA can be made through the use of two tools.  The [Common OVF Tool (COT)](https://cot.readthedocs.io) can be used to remove all but the desired deployment option, as well as to add additional network interface definitions.
 
@@ -12,7 +12,11 @@ The resulting OVA file must then be modified by the VMware [ovftool](https://dev
 Install the ```cot``` tool by following the instructions provided at [this link](https://cot.readthedocs.io/en/latest/installation.html).
 
 ## OVA Deployment Option (profile) selection:
-All but the desired deployment option, or profile, must be removed from the original OVA file:
+
+All but the desired deployment option, or profile, must be removed from the original OVA file.
+- This appears to be either a defect in ovftool or an incorrect format in the C8K OVF file.
+- The issue is caused by the "Virtual Hardware" sub-section of the "Virtual System" section of the file.  In that section there are duplicate specifications for each "Item" (CPU, Disks, Memory, etc.).  The first spec is a default and the subsequent ones are for specific "Profiles".  If you attempt to deploy the profile that only uses defaults (1CPU-4GB-16GB) it will work.  If you use any other profile the ovftool seems to see both the default setting and the profile specific setting as duplicates and generates an error.
+- The only fix we've found is to edit the OFV and remove all the possible duplicates.  The COT tool will remove many of them as shown below, but you will likely have to manually edit the file to remove default "Items" that the COT tool leaves behind.  
 
 ```
 > cot edit-hardware c8000v-universalk9.17.04.02.ova -o c8k-01.ova -p "4CPU-8GB-8GB" --delete-all-other-profiles
@@ -66,10 +70,10 @@ Error:
 >
 ```
 
-These line numbers refer to ```<ovf:Item> </ovf:Item>``` sections in the OVF file where there are multiple entries for VCPUs, Memory, and Disk sizes.  Here is an example of where there are two VCPU sections around line 58:
+These line numbers refer to ```<ovf:Item> </ovf:Item>``` sections in the OVF file where there are multiple entries for VCPUs, Memory, or Disk sizes.  Here is an example of where there are two VCPU sections around line 58.  In our tests, "Line 58" (for example) is the Item you need, and the duplicate is the default Item above it.
 
 ```
-      <ovf:Item>
+      <ovf:Item ovf>
         <rasd:AllocationUnits>hertz * 10^6</rasd:AllocationUnits>
         <rasd:Description>Number of Virtual CPUs</rasd:Description>
         <rasd:ElementName>1 virtual CPU(s)</rasd:ElementName>
